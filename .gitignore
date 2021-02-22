@@ -128,5 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# A little from me.
+# A little from me - domain specific files to don't stage.
 tmp/
+classify_camera_files_analyze_results.csv

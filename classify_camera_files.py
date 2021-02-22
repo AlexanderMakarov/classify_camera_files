@@ -366,7 +366,7 @@ class ClassifyCameraFiles():
     def _make_folder(self):
         if self.settings['is_replace_target'] and os.path.exists(self.settings['target_folder']):
             shutil.rmtree(self.settings['target_folder'])
-        os.makedirs(self.settings['target_folder'])
+            os.makedirs(self.settings['target_folder'])
 
     def _copy(self):
         created_folders = 0
@@ -481,6 +481,8 @@ def _setup_localization(lang: str):
     i18n.set('locale', lang)  # Simplify locale to language.
     i18n.set('fallback', 'en')
     i18n.add_translation('Specify folder with camera files.', 'Укажите папку с файлами фотоаппарата.', locale='ru')
+    i18n.add_translation("Specify folder copy/move files into.", "Укажите папку куда переместить/копировать файлы.",
+                         locale='ru')
     i18n.add_translation("%{prospective_dir} is not a valid path", "%{prospective_dir} неправильный путь", locale='ru')
     i18n.add_translation("%{prospective_dir} is not a readable path", "%{prospective_dir} недоступный путь", locale='ru')
     return lang
@@ -540,7 +542,12 @@ if __name__ == "__main__":
         args = {}
         lang = _setup_localization(locale.getdefaultlocale()[0][0:2])
         source_folder = filedialog.askdirectory(title=t("Specify folder with camera files."))
-        args = parser.parse_args(['-s', source_folder, '-a', 'full', '-r', '--language', lang])
+        if not source_folder:
+            exit(0)
+        target_folder = filedialog.askdirectory(title=t("Specify folder copy/move files into."))
+        if not target_folder:
+            exit(0)
+        args = parser.parse_args(['-s', source_folder, '-t', target_folder, '-a', 'full', '--language', lang])
     else:
         args = parser.parse_args()
         _setup_localization(args.lang)
