@@ -4,11 +4,26 @@ Classifies raw photos and videos from cameras and smartphones to simplify naming
 # How To Use
 Just run with "-h". If run without arguments then shows Tkinter folder chooser for target folder.
 
+# How To Work with on Unix
+- `pip3 install -r requirements.txt`
+- for Debian `sudo apt-get install python3-tk`
+
+# How To Build Windows .exe
+- https://www.python.org/downloads/
+- Clone/copy repo.
+- `pip3 install -r requirements.txt`
+- `pyinstaller --clean --onefile classify_camera_files.py` (without '--clean' if first time).
+- Resulting exe will be placed in "dist" folder.
+- Try execute from not "dist" folder! Important to ensure that all paths are relative.
+
 ### Roadmap
-- just time + files number
-    + git repo
-    - UI with copy or parse and target folder (replace or not).
-    - Faster parsing
-    - Explain actions
-- parse tags from video
-- classify inside https://www.pyimagesearch.com/2017/03/20/imagenet-vggnet-resnet-inception-xception-keras/
+- Simple classification strategy by time + files number
+    - ~~MVP~~~
+    - ~~Localization~~~
+    - ~~UI~~~
+    - ~~git repo~~~
+    - Advanced UI with actions, is_rewrite and so on (really need?)
+    - Faster parsing (really need?)
+    - Explain actions (for whom?)
+- Parse tags from video
+- Classify with ML like https://www.pyimagesearch.com/2017/03/20/imagenet-vggnet-resnet-inception-xception-keras/
