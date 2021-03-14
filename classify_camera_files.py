@@ -46,17 +46,18 @@ class ClassifyCameraFiles():
     def __init__(self, logger: logging.Logger, settings: Dict={}) -> None:
         self.logger = logger
         self.settings = {}
-        self.settings['source_folder'] = settings.get('source_folder', None)
+        self.settings['source_folder'] = settings.get('source_folder', os.getcwd())
         self.settings['results_file_path'] = settings.get(
             'results_file', self.DEFAULT_RESULTS_FILE)
         self.settings['target_folder'] = settings.get(
-            'target_folder', self.DEFAULT_TARGET_FOLDER)
+            'target_folder', os.path.join(os.getcwd(), self.DEFAULT_TARGET_FOLDER))
         self.settings['is_replace_target'] = settings.get('is_recreate_target', False)
         self.settings['min_folder_files_count'] = settings.get(
             'min_folder_files_count', self.MIN_FOLDER_FILES_COUNT)
         self.settings['max_minutes_between_files_in_folder'] = settings.get(
             'max_minutes_between_files_in_folder', self.MAX_TIME_BETWEEN_FILES_IN_FOLDER_MINUTES)
         self.settings['lang'] = settings.get('lang', 'en')
+        self.settings['verbose'] = settings.get('verbose', True)
 
         # Each file in folder with extracted features.
         self.analyze_results: List[Dict] = []
@@ -161,7 +162,8 @@ class ClassifyCameraFiles():
                         for parser in type_parsers:
                             new_fields = parser(file_path)
                             file_features.update(new_fields)
-                        self.logger.info(f"  {file_path} -> {file_features}")
+                        if self.settings.get('verbose'):
+                            self.logger.info(f"  {file_path} -> {file_features}")
                         self.analyze_results.append(file_features)
         return t("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
                  files_number=len(self.analyze_results), source_folder=self.settings['source_folder'],
@@ -214,7 +216,7 @@ class ClassifyCameraFiles():
             return t("mostly %{label}", label=t(near_half[0], count=9))
         return fallback_label
 
-    def _classify(self, is_verbose: bool = True):
+    def _classify(self):
         if not self.analyze_results:  # Ensure that list of results is not empty.
             raise ValueError(t("No resutls to analyze, make sure that they are loaded."))
 
@@ -346,7 +348,7 @@ class ClassifyCameraFiles():
                 (x['Path'], x['_name']) for x in results]
 
             # Print bucket details if need.
-            if is_verbose:
+            if self.settings.get('verbose'):
                 skipped_from_buckets_files = len(
                     out_of_bucket_files) - last_out_of_bucket_size
                 if skipped_from_buckets_files > 0:
@@ -422,6 +424,7 @@ class ClassifyCameraFiles():
                  duration=(datetime.datetime.now() - start_date))
 
     def analyze_all(self):
+        self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.logger.info(self._analyze({
             "Image": [self._parse_file_metadata, self._parse_exif_tags],
@@ -430,31 +433,36 @@ class ClassifyCameraFiles():
         self.logger.info(self._save_results())
 
     def classify_in_console(self):
+        self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.logger.info(self._read_results())
-        self.logger.info(self._classify(True))
+        self.logger.info(self._classify())
 
     def move(self):
+        self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.logger.info(self._read_results())
-        self.logger.info(self._classify(False))
+        self.logger.info(self._classify())
         self.logger.info(self._move())
 
     def copy(self):
+        self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.logger.info(self._read_results())
-        self.logger.info(self._classify(False))
+        self.logger.info(self._classify())
         self.logger.info(self._copy())
 
     def analyze_all_and_copy(self):
-        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.analyze_all()
-        self.copy()
+        self.logger.info(self._read_results())
+        self.logger.info(self._classify())
+        self.logger.info(self._copy())
 
     def analyze_all_and_move(self):
-        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.analyze_all()
-        self.move()
+        self.logger.info(self._read_results())
+        self.logger.info(self._classify())
+        self.logger.info(self._move())
 
 
 class ReadableDirAction(argparse.Action):
@@ -486,7 +494,7 @@ if __name__ == "__main__":
         lang = setup_localization()
         logger = setup_logging()
         ui = classifier_ui.ClassifierUI()
-        ui.run_mainloop(ClassifyCameraFiles(logger))
+        ui.run_mainloop(ClassifyCameraFiles(logger, {'verbose': False}))
     else:
         ACTIONS = {  # TODO print somehow and with localization maybe.
             'full': {
