@@ -46,11 +46,11 @@ class ClassifyCameraFiles():
     def __init__(self, logger: logging.Logger, settings: Dict={}) -> None:
         self.logger = logger
         self.settings = {}
-        self.settings['source_folder'] = settings.get('source_folder', os.getcwd())
+        self.settings['source_folder'] = settings.get('source_folder', os.path.expanduser('~'))
         self.settings['results_file_path'] = settings.get(
             'results_file', self.DEFAULT_RESULTS_FILE)
         self.settings['target_folder'] = settings.get(
-            'target_folder', os.path.join(os.getcwd(), self.DEFAULT_TARGET_FOLDER))
+            'target_folder', os.path.join(os.path.expanduser('~'), self.DEFAULT_TARGET_FOLDER))
         self.settings['is_replace_target'] = settings.get('is_recreate_target', False)
         self.settings['min_folder_files_count'] = settings.get(
             'min_folder_files_count', self.MIN_FOLDER_FILES_COUNT)
@@ -216,6 +216,10 @@ class ClassifyCameraFiles():
             return t("mostly %{label}", label=t(near_half[0], count=9))
         return fallback_label
 
+    @staticmethod
+    def _truncate_and_filtrate_for_path(string: str, max_length: int):
+        return string.replace('\\', '').replace('/', '').replace(':', '')[:max_length]
+
     def _classify(self):
         if not self.analyze_results:  # Ensure that list of results is not empty.
             raise ValueError(t("No resutls to analyze, make sure that they are loaded."))
@@ -236,7 +240,7 @@ class ClassifyCameraFiles():
             # "FileCTime" must be specified and used as fallback value. Crash if absent or wrong format - expected.
             if not timestamp:
                 timestamp = datetime.datetime.strptime(
-                    result.get("FileCTime"), "%Y-%m-%d %H:%M:%S.%f")
+                    result.get("FileCTime"), "%Y-%m-%d %H:%M:%S")
             result['_timestamp'] = timestamp
         timestamped = sorted(self.analyze_results,
                              key=lambda x: x['_timestamp'])
@@ -281,6 +285,7 @@ class ClassifyCameraFiles():
                 elif model:
                     camera_name = model
                 if camera_name:
+                    camera_name = self._truncate_and_filtrate_for_path(camera_name, 20)
                     result['_camera'] = camera_name
                 camera_model_counter[camera_name] += 1
 
@@ -376,9 +381,12 @@ class ClassifyCameraFiles():
                  files_number=len(out_of_bucket_files))
 
     def _make_folder(self):
-        if self.settings['is_replace_target'] and os.path.exists(self.settings['target_folder']):
-            shutil.rmtree(self.settings['target_folder'])
-            os.makedirs(self.settings['target_folder'])
+        folder = self.settings['target_folder']
+        if os.path.exists(folder):
+            if self.settings['is_replace_target']:
+                shutil.rmtree(folder)
+        else:
+            os.makedirs(folder)
 
     def _copy(self):
         created_folders = 0
