@@ -18,11 +18,12 @@ Just run with "-h". If run without arguments then shows Tkinter folder chooser f
 
 ### Roadmap
 - Simple classification strategy by time + files number
-    - ~~MVP~~~
-    - ~~Localization~~~
-    - ~~UI~~~
-    - ~~git repo~~~
-    - Advanced UI with actions, is_rewrite and so on (really need?)
+    - ~~MVP~~
+    - ~~Localization~~
+    - UI to choose folders BUG - chooses folder above
+    - ~~git repo~~
+    - UI with progress
+    - UI with actions and fine tuning(really need?)
     - Faster parsing (really need?)
     - Explain actions (for whom?)
 - Parse tags from video

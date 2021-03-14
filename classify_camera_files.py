@@ -4,15 +4,13 @@ import os
 import datetime
 import csv
 import sys
+import logging
 from typing import Any, List, Dict, Set, Callable, AnyStr, Iterable
 from PIL import Image, ExifTags
 import collections
-from ast import literal_eval
 import shutil
+from localization import t, setup_localization, add_translation
 import locale
-import tkinter as tk
-from tkinter import filedialog
-import i18n  # gettext is too complex for setup with extra files.
 
 
 class ClassifyCameraFiles():
@@ -45,7 +43,8 @@ class ClassifyCameraFiles():
     MIN_FOLDER_FILES_COUNT = 3
     MAX_TIME_BETWEEN_FILES_IN_FOLDER_MINUTES = 60
 
-    def __init__(self, settings: Dict) -> None:
+    def __init__(self, logger: logging.Logger, settings: Dict={}) -> None:
+        self.logger = logger
         self.settings = {}
         self.settings['source_folder'] = settings.get('source_folder', None)
         self.settings['results_file_path'] = settings.get(
@@ -65,67 +64,72 @@ class ClassifyCameraFiles():
         self.classified_files: Dict[AnyStr, List] = {}
 
         # Setup localization. Note that Russian case is played via "few".
-        i18n.add_translation("No resutls to analyze, make sure that they are loaded.",
-                             'Нет результатов анализа, проверьте что они загружены.', locale='ru')
-        i18n.add_translation('Landscape', {'one': 'Ландшафтная', 'few': 'Ландшафтная', 'many': 'Ландшафтной'}, locale='ru')
-        i18n.add_translation('Portrait', {'one': 'Портретная', 'few': 'Портретная', 'many': 'Портретной'}, locale='ru')
-        i18n.add_translation('Dark', {'one': 'Тёмный', 'few': 'Тёмных', 'many': 'Тёмные'}, locale='ru')
-        i18n.add_translation('Light', {'one': 'Светлый', 'few': 'Светлых', 'many': 'Светлые'}, locale='ru')
-        i18n.add_translation('Unknown orientation', 'Неизвестная ориентация', locale='ru')
-        i18n.add_translation("Looking through '%{source_folder}'...",
-                             "Анализирую '%{source_folder}'...", locale='ru')
-        i18n.add_translation("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
-                             "Анализировано %{files_number} файлов в '%{source_folder}' за %{duration}.", locale='ru')
-        i18n.add_translation(
+        add_translation("No resutls to analyze, make sure that they are loaded.",
+                        'Нет результатов анализа, проверьте что они загружены.', locale='ru')
+        add_translation('Landscape', {
+                        'one': 'Ландшафтная', 'few': 'Ландшафтная', 'many': 'Ландшафтной'}, locale='ru')
+        add_translation('Portrait', {
+                        'one': 'Портретная', 'few': 'Портретная', 'many': 'Портретной'}, locale='ru')
+        add_translation(
+            'Dark', {'one': 'Тёмный', 'few': 'Тёмных', 'many': 'Тёмные'}, locale='ru')
+        add_translation(
+            'Light', {'one': 'Светлый', 'few': 'Светлых', 'many': 'Светлые'}, locale='ru')
+        add_translation('Unknown orientation',
+                        'Неизвестная ориентация', locale='ru')
+        add_translation("Looking through '%{source_folder}'...",
+                        "Анализирую '%{source_folder}'...", locale='ru')
+        add_translation("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
+                        "Анализировано %{files_number} файлов в '%{source_folder}' за %{duration}.", locale='ru')
+        add_translation(
             "Found %{files_number} files docs with %{keys} fields in '%{file_path}'.",
             "Найдено %{files_number} описаний файлов с %{keys} полями в '%{file_path}'.",
             locale='ru'
         )
-        i18n.add_translation("Found nothing in '%{file_path}'.", "Ничего не найдено в %{file_path}.", locale='ru')
-        i18n.add_translation(
+        add_translation(
+            "Found nothing in '%{file_path}'.", "Ничего не найдено в %{file_path}.", locale='ru')
+        add_translation(
             "Dumped %{files_number} files analyze results with %{possible_keys} columns into '%{file_path}'.",
             "Сохранено %{files_number} результатов анализа файлов с %{possible_keys} полями в '%{file_path}'",
             locale='ru'
         )
-        i18n.add_translation("all %{label}", "все %{label}", locale='ru')
-        i18n.add_translation("mixed %{label1} and %{label2}", "смешаны %{label1} и %{label2}", locale='ru')
-        i18n.add_translation("mostly %{label}", "больше %{label}", locale='ru')
-        i18n.add_translation("Wrong DateTimeOriginal value in %{file_path} file: %{e}",
-                             "Неверное значение DateTimeOriginal в %{file_path} файле: %{e}", locale='ru')
-        i18n.add_translation(" files on ", " файлов в ", locale='ru')
-        i18n.add_translation(
+        add_translation("all %{label}", "все %{label}", locale='ru')
+        add_translation("mixed %{label1} and %{label2}",
+                        "смешаны %{label1} и %{label2}", locale='ru')
+        add_translation("mostly %{label}", "больше %{label}", locale='ru')
+        add_translation("Wrong DateTimeOriginal value in %{file_path} file: %{e}",
+                        "Неверное значение DateTimeOriginal в %{file_path} файле: %{e}", locale='ru')
+        add_translation(" files on ", " файлов в ", locale='ru')
+        add_translation(
             "Skipping %{skipped_from_buckets_files} files as 'nothing common' in %{last_bucket_timestamp}"
             "...%{start_bucket_timestamp}",
             "Пропускаю %{skipped_from_buckets_files} файлов как 'ничего общего' в %{last_bucket_timestamp}"
             "...%{start_bucket_timestamp}",
             locale='ru'
         )
-        i18n.add_translation("    Camera: %{camera_model_counter}",
-                             "    Камера: %{camera_model_counter}", locale='ru')
-        i18n.add_translation("    Brightness: %{brightness_counter}",
-                             "    Яркость: %{brightness_counter}", locale='ru')
-        i18n.add_translation("    Orientation: %{orientation_counter}",
-                             "    Ориентация: %{orientation_counter}", locale='ru')
-        i18n.add_translation("Total %{folders_len} folders and %{files_number} 'nothing common' files.",
-                             "Итого %{folders_len} папок и %{files_number} 'ничего общего' файлов.", locale='ru')
-        i18n.add_translation("Copying %{files_number} files into %{folder_name}...",
-                             "Копирую %{files_number} файлов в %{folder_name}...", locale='ru')
-        i18n.add_translation("Moving %{files_number} files into %{folder_name}...",
-                             "Переношу %{files_number} файлов в %{folder_name}...", locale='ru')
-        i18n.add_translation(
+        add_translation("    Camera: %{camera_model_counter}",
+                        "    Камера: %{camera_model_counter}", locale='ru')
+        add_translation("    Brightness: %{brightness_counter}",
+                        "    Яркость: %{brightness_counter}", locale='ru')
+        add_translation("    Orientation: %{orientation_counter}",
+                        "    Ориентация: %{orientation_counter}", locale='ru')
+        add_translation("Total %{folders_len} folders and %{files_number} 'nothing common' files.",
+                        "Итого %{folders_len} папок и %{files_number} 'ничего общего' файлов.", locale='ru')
+        add_translation("Copying %{files_number} files into %{folder_name}...",
+                        "Копирую %{files_number} файлов в %{folder_name}...", locale='ru')
+        add_translation("Moving %{files_number} files into %{folder_name}...",
+                        "Переношу %{files_number} файлов в %{folder_name}...", locale='ru')
+        add_translation(
             "Created %{folders_number} folders and copied %{files_number} files into '%{folder}' in %{duration}.",
             "Создано %{folders_number} папок и скопировано %{files_number} файлов в '%{folder}' за %{duration}.",
             locale='ru'
         )
-        i18n.add_translation(
+        add_translation(
             "Created %{folders_number} folders and moved %{files_number} files into '%{folder}' in %{duration}.",
             "Создано %{folders_number} папок и перенесено %{files_number} файлов в '%{folder}' за %{duration}.",
             locale='ru'
         )
-        i18n.add_translation("ClassifyCameraFiles: started with settings %{settings}",
-                             "ClassifyCameraFiles: запущен с настройками %{settings}", locale='ru')
-
-        print(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
+        add_translation("ClassifyCameraFiles: started with settings %{settings}",
+                        "ClassifyCameraFiles: запущен с настройками %{settings}", locale='ru')
 
     def _parse_file_metadata(self, file_path: str) -> Dict:
         return {  # Sync with SUPPORTED_FILE_ATTRIBUTES.
@@ -145,7 +149,7 @@ class ClassifyCameraFiles():
 
     def _analyze(self, parsers: Dict[AnyStr, Callable]):
         start_time = datetime.datetime.now()
-        print(t("Looking through '%{source_folder}'...", source_folder=self.settings['source_folder']))
+        self.logger.info(t("Looking through '%{source_folder}'...", source_folder=self.settings['source_folder']))
         for root, _, files in os.walk(os.path.abspath(self.settings['source_folder'])):
             for file in files:
                 file_path = os.path.join(root, file)
@@ -157,7 +161,7 @@ class ClassifyCameraFiles():
                         for parser in type_parsers:
                             new_fields = parser(file_path)
                             file_features.update(new_fields)
-                        print(f"  {file_path} -> {file_features}")
+                        self.logger.info(f"  {file_path} -> {file_features}")
                         self.analyze_results.append(file_features)
         return t("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
                  files_number=len(self.analyze_results), source_folder=self.settings['source_folder'],
@@ -224,7 +228,8 @@ class ClassifyCameraFiles():
                     timestamp = datetime.datetime.strptime(
                         datetime_original.strip("'"), "%Y:%m:%d %H:%M:%S")
                 except ValueError as e:
-                    print(t("Wrong DateTimeOriginal value in %{file_path} file: %{e}", file_path=result['Path'], e=e))
+                    self.logger.warn(t("Wrong DateTimeOriginal value in %{file_path} file: %{e}",
+                                       file_path=result['Path'], e=e))
 
             # "FileCTime" must be specified and used as fallback value. Crash if absent or wrong format - expected.
             if not timestamp:
@@ -345,13 +350,18 @@ class ClassifyCameraFiles():
                 skipped_from_buckets_files = len(
                     out_of_bucket_files) - last_out_of_bucket_size
                 if skipped_from_buckets_files > 0:
-                    print(t("Skipping %{skipped_from_buckets_files} files as 'nothing common' in %{last_bucket_timestamp}"
-                                 "...%{start_bucket_timestamp}", skipped_from_buckets_files=skipped_from_buckets_files,
-                                 last_bucket_timestamp=last_bucket_timestamp, start_bucket_timestamp=start_bucket_timestamp))
-                print(f"{bucket_name}:")
-                print(t("    Camera: %{camera_model_counter}", camera_model_counter=camera_model_counter))
-                print(t("    Brightness: %{brightness_counter}", brightness_counter=brightness_counter))
-                print(t("    Orientation: %{orientation_counter}", orientation_counter=orientation_counter))
+                    self.logger.info(t("Skipping %{skipped_from_buckets_files} files as 'nothing common' in "
+                                       "%{last_bucket_timestamp}...%{start_bucket_timestamp}",
+                                       skipped_from_buckets_files=skipped_from_buckets_files,
+                                       last_bucket_timestamp=last_bucket_timestamp,
+                                       start_bucket_timestamp=start_bucket_timestamp))
+                self.logger.info(f"{bucket_name}:\n"
+                                 + t("    Camera: %{camera_model_counter}",
+                                     camera_model_counter=camera_model_counter)
+                                 + t("    Brightness: %{brightness_counter}",
+                                     brightness_counter=brightness_counter)
+                                 + t("    Orientation: %{orientation_counter}",
+                                     orientation_counter=orientation_counter))
 
             # Update 'out of bucket' variables.
             last_bucket_timestamp = results[-1]['_timestamp']
@@ -380,7 +390,7 @@ class ClassifyCameraFiles():
                 os.mkdir(folder_path)
             # Yes, folder may be not created but count expected results, not actions.
             created_folders += 1
-            print(t("Copying %{files_number} files into %{folder_name}...", files_number=len(files_actions),
+            self.logger.info(t("Copying %{files_number} files into %{folder_name}...", files_number=len(files_actions),
                     folder_name=(folder_name if folder_name else folder_path)))
             for action in files_actions:
                 shutil.copyfile(action[0], os.path.join(
@@ -402,7 +412,7 @@ class ClassifyCameraFiles():
                 os.mkdir(folder_path)
             # Yes, folder may be not created but count expected results, not actions.
             created_folders += 1
-            print(t("Moving %{files_number} files into %{folder_name}...", files_number=len(files_actions),
+            self.logger.info(t("Moving %{files_number} files into %{folder_name}...", files_number=len(files_actions),
                     folder_name=(folder_name if folder_name else folder_path)))
             for action in files_actions:
                 shutil.move(action[0], os.path.join(folder_path, action[1]))
@@ -412,31 +422,37 @@ class ClassifyCameraFiles():
                  duration=(datetime.datetime.now() - start_date))
 
     def analyze_all(self):
-        print(self._analyze({
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
+        self.logger.info(self._analyze({
             "Image": [self._parse_file_metadata, self._parse_exif_tags],
             "Video": [self._parse_file_metadata]  # TODO parse info from video.
         }))
-        print(self._save_results())
+        self.logger.info(self._save_results())
 
     def classify_in_console(self):
-        print(self._read_results())
-        print(self._classify(True))
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
+        self.logger.info(self._read_results())
+        self.logger.info(self._classify(True))
 
     def move(self):
-        print(self._read_results())
-        print(self._classify(False))
-        print(self._move())
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
+        self.logger.info(self._read_results())
+        self.logger.info(self._classify(False))
+        self.logger.info(self._move())
 
     def copy(self):
-        print(self._read_results())
-        print(self._classify(False))
-        print(self._copy())
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
+        self.logger.info(self._read_results())
+        self.logger.info(self._classify(False))
+        self.logger.info(self._copy())
 
     def analyze_all_and_copy(self):
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.analyze_all()
         self.copy()
 
     def analyze_all_and_move(self):
+        self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
         self.analyze_all()
         self.move()
 
@@ -454,102 +470,74 @@ class ReadableDirAction(argparse.Action):
                 t("%{prospective_dir} is not a readable path", prospective_dir=prospective_dir))
 
 
-def t(key, **kwargs):
-    """
-    Modified version of 'i18n.t(key, **kwargs)' function. Differences:
-    - Doesn't need in 'fallback' translation - keys are translation (like in iOS). It means that all placeholders are
-    supported directly in keys. If current local is 'fallback' then key is added as value and translated as usual.
-    - Doesn't try to find translation in files - everything expected to be added into 'i18n.translations.container'.
-    :param key: Key to translate.
-    :param kwargs: Extra parameters for translation.
-    :return Localized value.
-    """
-    locale = kwargs.pop('locale', i18n.config.get('locale'))
-    if i18n.translations.has(key, locale):
-        return i18n.translator.translate(key, locale=locale, **kwargs)
-    elif locale == i18n.config.get('fallback'):
-
-        # If key not found then add it under current locale to make i18n format it.
-        # By default it tries to see in filed and returns key without applying formatting.
-        i18n.translations.add(key, key, locale=locale)
-        return i18n.translator.translate(key, **kwargs)
-    else:
-        return key + " [can't translate]"
-
-
-def _setup_localization(lang: str):
-    i18n.set('locale', lang)  # Simplify locale to language.
-    i18n.set('fallback', 'en')
-    i18n.add_translation('Specify folder with camera files.', 'Укажите папку с файлами фотоаппарата.', locale='ru')
-    i18n.add_translation("Specify folder copy/move files into.", "Укажите папку куда переместить/копировать файлы.",
-                         locale='ru')
-    i18n.add_translation("%{prospective_dir} is not a valid path", "%{prospective_dir} неправильный путь", locale='ru')
-    i18n.add_translation("%{prospective_dir} is not a readable path", "%{prospective_dir} недоступный путь", locale='ru')
-    return lang
+def setup_logging():
+    logging.addLevelName(logging.WARNING, 'WARN')
+    logging.basicConfig(level=logging.INFO, format='%(levelname)-5s: %(message)s') 
+    return logging.getLogger()
 
 
 if __name__ == "__main__":
-    ACTIONS = {  # TODO print somehow and with localization maybe.
-        'full': {
-            'desc': 'Analyze by all metrics, save CSV with result, copy data.',
-            'method_to_run': "analyze_all_and_copy",
-        },
-        'analyze-all': {
-            'desc': 'Analyze by all metrics, save CSV with result.',
-            'method_to_run': "analyze_all",
-        },
-        'move': {
-            'desc': 'Read CSV with anylize result and move files.',
-            'method_to_run': "move",
-        },
-        'copy': {
-            'desc': 'Read CSV with anylize result and copy files.',
-            'method_to_run': "copy",
-        },
-        'classify': {
-            'desc': 'Read CSV with anylize result, classify and print results.',
-            'method_to_run': "classify_in_console",
-        },
-    }
-    parser = argparse.ArgumentParser(
-        description='Traverse specified folder, classifiers files from camera (i.e. photo and video) and moves to new '
-                    'folders with names based on classses. For now classifies by time only.'
-    )
-    parser.add_argument('-s', '--source-folder', dest='source_folder', action=ReadableDirAction, required=False,
-                        help='Path to folder with not classified files. Will be traversed recursively.')
-    parser.add_argument('-t', '--target-folder', dest='target_folder', type=str,
-                        default=ClassifyCameraFiles.DEFAULT_TARGET_FOLDER,
-                        help='Path to folder move files into. Folder will be created with nested folders per class.')
-    parser.add_argument('-r', '--recreate-target', dest='is_recreate_target', action='store_true',
-                        help='Flag to pre-clean target folder on copy/move action.')
-    parser.add_argument('-a', '--action', dest='action', choices=ACTIONS.keys(), default='full',
-                        help='Action to do. By default "full" aka analyze, dump results, copy files.')
-    parser.add_argument('-f', '--results-file', dest='results_file', type=str, required=False,
-                        default=ClassifyCameraFiles.DEFAULT_RESULTS_FILE,
-                        help='Path to CSV file save analyze results into.')
-    parser.add_argument('--min-folder-files-count', dest='min_folder_files_count', type=int,
-                        default=ClassifyCameraFiles.MIN_FOLDER_FILES_COUNT,
-                        help='Minimal files which should have folder. '
-                             'If folder appears to have less files then they go to "nothing common" folder.')
-    parser.add_argument('--max-minutes-between-files-in-folder', dest='max_minutes_between_files_in_folder', type=int,
-                        default=ClassifyCameraFiles.MAX_TIME_BETWEEN_FILES_IN_FOLDER_MINUTES,
-                        help='Maximum time gap in minutes between filed to put them in one folder.')
-    parser.add_argument('--language', dest='lang', type=str, default=locale.getdefaultlocale()[0][0:2],
-                        help='Specify language for output. By default is used system locale.')
-    if len(sys.argv) == 1:
-        root = tk.Tk()
-        root.withdraw()
-        args = {}
-        lang = _setup_localization(locale.getdefaultlocale()[0][0:2])
-        source_folder = filedialog.askdirectory(title=t("Specify folder with camera files."))
-        if not source_folder:
-            exit(0)
-        target_folder = filedialog.askdirectory(title=t("Specify folder copy/move files into."))
-        if not target_folder:
-            exit(0)
-        args = parser.parse_args(['-s', source_folder, '-t', target_folder, '-a', 'full', '--language', lang])
+    add_translation("%{prospective_dir} is not a valid path",
+                    "%{prospective_dir} неправильный путь", locale='ru')
+    add_translation("%{prospective_dir} is not a readable path",
+                    "%{prospective_dir} недоступный путь", locale='ru')
+    if len(sys.argv) == 1:  # If no arguments - run UI.
+        import classifier_ui
+        lang = setup_localization()
+        logger = setup_logging()
+        ui = classifier_ui.ClassifierUI()
+        ui.run_mainloop(ClassifyCameraFiles(logger))
     else:
+        ACTIONS = {  # TODO print somehow and with localization maybe.
+            'full': {
+                'desc': 'Analyze by all metrics, save CSV with result, copy data.',
+                'method_to_run': "analyze_all_and_copy",
+            },
+            'analyze-all': {
+                'desc': 'Analyze by all metrics, save CSV with result.',
+                'method_to_run': "analyze_all",
+            },
+            'move': {
+                'desc': 'Read CSV with anylize result and move files.',
+                'method_to_run': "move",
+            },
+            'copy': {
+                'desc': 'Read CSV with anylize result and copy files.',
+                'method_to_run': "copy",
+            },
+            'classify': {
+                'desc': 'Read CSV with anylize result, classify and print results.',
+                'method_to_run': "classify_in_console",
+            },
+        }
+        parser = argparse.ArgumentParser(
+            description='Traverse specified folder recursively, classifies files from camera (photos and videos), '
+                        'moves them to new folders with names based on classses. Uses EXIF tags and creation time.'
+        )
+        parser.add_argument('-s', '--source-folder', dest='source_folder', action=ReadableDirAction, required=False,
+                            help='Path to folder with not classified files. Will be traversed recursively.')
+        parser.add_argument('-t', '--target-folder', dest='target_folder', type=str,
+                            default=ClassifyCameraFiles.DEFAULT_TARGET_FOLDER,
+                            help='Path to folder move/copy files into. '
+                                 'Folder will be created with nested folders per class.')
+        parser.add_argument('-r', '--recreate-target', dest='is_recreate_target', action='store_true',
+                            help='Flag to pre-clean target folder on copy/move action.')
+        parser.add_argument('-a', '--action', dest='action', choices=ACTIONS.keys(), default='full',
+                            help='Action to do. By default "full" aka analyze, dump results, copy files.')
+        parser.add_argument('-f', '--results-file', dest='results_file', type=str, required=False,
+                            default=ClassifyCameraFiles.DEFAULT_RESULTS_FILE,
+                            help='Path to CSV file save analyze results into.')
+        parser.add_argument('--min-folder-files-count', dest='min_folder_files_count', type=int,
+                            default=ClassifyCameraFiles.MIN_FOLDER_FILES_COUNT,
+                            help='Minimal files which should have folder. '
+                                'If folder appears to have less files then they go to "nothing common" folder.')
+        parser.add_argument('--max-minutes-between-files-in-folder', dest='max_minutes_between_files_in_folder',
+                            type=int, default=ClassifyCameraFiles.MAX_TIME_BETWEEN_FILES_IN_FOLDER_MINUTES,
+                            help='Maximum time gap in minutes between filed to put them in one folder.')
+        parser.add_argument('--language', dest='lang', type=str, default=locale.getdefaultlocale()[0][0:2],
+                            help='Specify language for output. By default is used system locale.')
+        logger = setup_logging()
         args = parser.parse_args()
-        _setup_localization(args.lang)
-    worker = ClassifyCameraFiles(vars(args))
-    getattr(worker, ACTIONS[args.action]['method_to_run'])()
+        setup_localization(args.lang)
+        worker = ClassifyCameraFiles(logger, vars(args))
+        getattr(worker, ACTIONS[args.action]['method_to_run'])()
