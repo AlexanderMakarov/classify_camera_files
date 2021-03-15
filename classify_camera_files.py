@@ -46,11 +46,11 @@ class ClassifyCameraFiles():
     def __init__(self, logger: logging.Logger, settings: Dict={}) -> None:
         self.logger = logger
         self.settings = {}
-        self.settings['source_folder'] = settings.get('source_folder', os.path.expanduser('~'))
+        self.settings['source_folder'] = settings.get('source_folder', os.getcwd())
         self.settings['results_file_path'] = settings.get(
             'results_file', self.DEFAULT_RESULTS_FILE)
         self.settings['target_folder'] = settings.get(
-            'target_folder', os.path.join(os.path.expanduser('~'), self.DEFAULT_TARGET_FOLDER))
+            'target_folder', os.path.join(os.getcwd(), self.DEFAULT_TARGET_FOLDER))
         self.settings['is_replace_target'] = settings.get('is_recreate_target', False)
         self.settings['min_folder_files_count'] = settings.get(
             'min_folder_files_count', self.MIN_FOLDER_FILES_COUNT)
