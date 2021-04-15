@@ -39,7 +39,7 @@ Note that to choose folder it is necessarily go into it and only next press "OK"
     - ~~Enable copy-into-clipboard from log widget~~
     - ~~Need alarm/signal that job finish~~
     - Bug: buttons functions are unclear
-    - Bug: ! Video creation time is wrong (equal job start time)
+    - ~~Bug: ! Video creation time is wrong (equal job start time)~~
     - UI with fine tuning (really need?)
     - Faster parsing (really need?)
     - Explain actions in console

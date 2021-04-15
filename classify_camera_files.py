@@ -242,6 +242,11 @@ class ClassifyCameraFiles():
             if not timestamp:
                 timestamp = datetime.datetime.strptime(
                     result.get("FileCTime"), "%Y-%m-%d %H:%M:%S")
+                # Sometimes (for video) creation time is not persisted, only modified time. Use it.
+                timestamp_modified = datetime.datetime.strptime(
+                    result.get("FileMTime"), "%Y-%m-%d %H:%M:%S")
+                if timestamp_modified < timestamp:
+                    timestamp = timestamp_modified
             result['_timestamp'] = timestamp
         timestamped = sorted(self.analyze_results,
                              key=lambda x: x['_timestamp'])
@@ -406,7 +411,7 @@ class ClassifyCameraFiles():
             self.logger.info(t("Copying %{files_number} files into %{folder_name}...", files_number=len(files_actions),
                     folder_name=(folder_name if folder_name else folder_path)))
             for action in files_actions:
-                shutil.copyfile(action[0], os.path.join(
+                shutil.copy2(action[0], os.path.join(
                     folder_path, action[1]))
                 copied_files += 1
         return t("Created %{folders_number} folders and copied %{files_number} files into '%{folder}' in %{duration}.",
