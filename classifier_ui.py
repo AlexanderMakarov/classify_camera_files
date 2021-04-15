@@ -1,6 +1,7 @@
 import logging
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
+from tkinter import messagebox
 from tkinter import filedialog
 from types import FunctionType
 from functools import partial
@@ -58,6 +59,7 @@ class ClassifierUI():
         add_translation('Analyze and Move', 'Анализ и переместить', locale='ru')
         add_translation('Analyze Only', 'Анализ только', locale='ru')
         add_translation('Classifier error: %{error}', 'Ошибка классификатора: %{error}', locale='ru')
+        add_translation('Classifier task completed.', 'Таск классификатора закончен.', locale='ru')
         self.root = tk.Tk()
         self.root.title(t('Camera files classifier by Alexander Makarov'))
         # Control frame at top.
@@ -184,6 +186,8 @@ class ClassifierUI():
         # Run command in separate thread to don't freeze UI.
         try:
             threading.Thread(target=command()).start()
+            messagebox.showinfo(title=t('Camera files classifier by Alexander Makarov'),
+                                message=t('Classifier task completed.'))
         except Exception as e:
             classifier.logger.error(t('Classifier error: %{error}', error=e), exc_info=True)
 

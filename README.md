@@ -32,12 +32,12 @@ Note that to choose folder it is necessarily go into it and only next press "OK"
     - ~~git repo~~
     - ~~UI with progress~~
     - ~~UI with actions~~
-    - Bug: Xterm confusing ? 
+    - Bug: Xterm confusing ?
     - Bug: UI freezes during copying
     - Need progress bar
     - Need ETA for copying
-    - Enable copy-into-clipboard in log widget
-    - Need alarm/signal that job finish
+    - ~~Enable copy-into-clipboard from log widget~~
+    - ~~Need alarm/signal that job finish~~
     - Bug: buttons functions are unclear
     - Bug: ! Video creation time is wrong (equal job start time)
     - UI with fine tuning (really need?)
