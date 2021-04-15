@@ -60,9 +60,9 @@ class ClassifyCameraFiles():
         self.settings['verbose'] = settings.get('verbose', True)
 
         # Each file in folder with extracted features.
-        self.analyze_results: List[Dict] = []
+        self.analyze_results: List[Dict] = None
         # List of folders to create with "from" -> "to" pathes.
-        self.classified_files: Dict[AnyStr, List] = {}
+        self.classified_files: Dict[AnyStr, List] = None
 
         # Setup localization. Note that Russian case is played via "few".
         add_translation("No resutls to analyze, make sure that they are loaded.",
@@ -149,6 +149,7 @@ class ClassifyCameraFiles():
         return parsed_tags
 
     def _analyze(self, parsers: Dict[AnyStr, Callable]):
+        self.analyze_results: List[Dict] = []
         start_time = datetime.datetime.now()
         self.logger.info(t("Looking through '%{source_folder}'...", source_folder=self.settings['source_folder']))
         for root, _, files in os.walk(os.path.abspath(self.settings['source_folder'])):
@@ -262,6 +263,7 @@ class ClassifyCameraFiles():
                 current_bucket_datetime = timestamp
 
         # 3: Analyze each bucket to find out sizes. Buckets with few files makes no sense.
+        self.classified_files = {}
         out_of_bucket_files = []
         last_bucket_timestamp = None
         last_out_of_bucket_size = 0
@@ -382,10 +384,11 @@ class ClassifyCameraFiles():
 
     def _make_folder(self):
         folder = self.settings['target_folder']
-        if os.path.exists(folder):
-            if self.settings['is_replace_target']:
+        if self.settings['is_replace_target']:
+            if os.path.exists(folder):
                 shutil.rmtree(folder)
-        else:
+            os.makedirs(folder)
+        elif not os.path.exists(folder):
             os.makedirs(folder)
 
     def _copy(self):

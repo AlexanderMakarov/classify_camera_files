@@ -5,6 +5,7 @@ from tkinter import filedialog
 from types import FunctionType
 from functools import partial
 from localization import t, add_translation
+import threading
 
 # UI to show classifier activity and ask details based on Tkinter and
 # https://stackoverflow.com/questions/13318742/python-logging-to-tkinter-text-widget
@@ -26,8 +27,20 @@ class WidgetLogger(logging.Handler):
         self.widget.config(state='normal')
         self.widget.insert(tk.INSERT, self.format(record) + '\n', record.levelname)
         self.widget.see(tk.END)  # Scroll to the bottom.
-        self.widget.config(state='disabled') 
+        # self.widget.config(state='disabled') 
         self.widget.update() # Refresh the widget
+
+
+class LogScrolledText(ScrolledText):
+    def __init__(self, root, **kw):
+        ScrolledText.__init__(self, root, **kw)
+        self.configure(font='TkFixedFont')
+        self.bind('<Control-c>', self.copy)
+
+    def copy(self, event=None):
+        self.clipboard_clear()
+        text = self.get("sel.first", "sel.last")
+        self.clipboard_append(text)
 
 class ClassifierUI():
     def __init__(self):
@@ -44,11 +57,12 @@ class ClassifierUI():
         add_translation('Analyze and Copy', 'Анализ и копировать', locale='ru')
         add_translation('Analyze and Move', 'Анализ и переместить', locale='ru')
         add_translation('Analyze Only', 'Анализ только', locale='ru')
+        add_translation('Classifier error: %{error}', 'Ошибка классификатора: %{error}', locale='ru')
         self.root = tk.Tk()
         self.root.title(t('Camera files classifier by Alexander Makarov'))
         # Control frame at top.
         self.control_frame = tk.Frame(self.root)
-        # First row to choose source folder.
+        # 1 row to choose source folder.
         self.source_folder_label = tk.Label(
             self.control_frame,
             text=t('Source folder:')
@@ -63,7 +77,7 @@ class ClassifierUI():
             text=t('Browse'),
             command=partial(self.ask_folder, t('Specify folder with camera files'), self.source_folder),
         )
-        # Second row to choose target folder.
+        # 2 row to choose target folder.
         self.target_folder_label = tk.Label(
             self.control_frame,
             text=t('Target folder:')
@@ -78,7 +92,7 @@ class ClassifierUI():
             text=t('Browse'),
             command=partial(self.ask_folder, t('Specify folder copy/move files into'), self.target_folder),
         )
-        # Third row with extra settings.
+        # 3 row with extra settings.
         self.is_replace_label = tk.Label(
             self.control_frame,
             text=t('Is replace target')
@@ -89,7 +103,7 @@ class ClassifierUI():
             variable=self.is_replace,
             onvalue=1, offvalue=0
         )
-        # Forth row with action buttons.
+        # 4 row with action buttons.
         self.analyze_and_copy_button = tk.Button(
             self.control_frame,
             text=t('Analyze and Copy'),
@@ -102,7 +116,7 @@ class ClassifierUI():
             self.control_frame,
             text=t('Analyze Only'),
         )
-
+        # Put controls on grid.
         row=0
         self.source_folder_label.grid(
             row=row, column=0, sticky=tk.E
@@ -140,20 +154,19 @@ class ClassifierUI():
         self.analyze_button.grid(
             row=row, column=2, sticky=tk.E
         )
-
+        # Put control frame on grid.
         self.control_frame.grid(
-            row=0, column=0, sticky=tk.NSEW
+            row=0, column=0, sticky=tk.W+tk.N+tk.E
         )
         self.control_frame.columnconfigure(1, weight=10)  # Middle column expand to fill window.
-
-        # Add text widget to display logging info
-        self.log_view = ScrolledText(self.root, state='disabled')
-        self.log_view.configure(font='TkFixedFont')
+        # Add text widget to display logging info under control frame. Put on grid.
+        self.log_view = LogScrolledText(self.root)
         self.log_view.grid(
             row=1, column=0, sticky=tk.NSEW
         )
-
-        self.root.columnconfigure(0, weight=1)  # Full the whole window.
+        # Full the whole window with both top widgets on horizontal, expand log view on vertical.
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
 
     def ask_folder(self, dialog_title: str, variable: tk.StringVar):
         folder = filedialog.askdirectory(title=dialog_title)
@@ -167,7 +180,14 @@ class ClassifierUI():
         classifier.settings['source_folder'] = self.source_folder.get()
         classifier.settings['target_folder'] = self.target_folder.get()
         classifier.settings['is_replace_target'] = True if self.is_replace.get() == 1 else False
-        command()
+
+        # Run command in separate thread to don't freeze UI.
+        try:
+            threading.Thread(target=command()).start()
+        except Exception as e:
+            classifier.logger.error(t('Classifier error: %{error}', error=e), exc_info=True)
+
+        # Restore 'verbose' setting for classifier.
         if force_verbose:
             classifier.settings['verbose'] = verbose
 
