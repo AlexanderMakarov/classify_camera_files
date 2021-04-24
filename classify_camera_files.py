@@ -11,6 +11,8 @@ import collections
 import shutil
 from localization import t, setup_localization, add_translation
 import locale
+import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 
 class ClassifyCameraFiles():
@@ -61,7 +63,7 @@ class ClassifyCameraFiles():
 
         # Each file in folder with extracted features.
         self.analyze_results: List[Dict] = None
-        # List of folders to create with "from" -> "to" pathes.
+        # List of folders to create with "from" -> "to" pathes. Values - list of tuples (src_path, src_name, ).
         self.classified_files: Dict[AnyStr, List] = None
 
         # Setup localization. Note that Russian case is played via "few".
@@ -131,6 +133,7 @@ class ClassifyCameraFiles():
         )
         add_translation("ClassifyCameraFiles: started with settings %{settings}",
                         "ClassifyCameraFiles: запущен с настройками %{settings}", locale='ru')
+        add_translation("Progress", "Прогресс", locale='ru')
 
     def _parse_file_metadata(self, file_path: str) -> Dict:
         return {  # Sync with SUPPORTED_FILE_ATTRIBUTES.
@@ -401,19 +404,22 @@ class ClassifyCameraFiles():
         copied_files = 0
         start_date = datetime.datetime.now()
         self._make_folder()
-        for folder_name, files_actions in self.classified_files.items():
-            folder_path = os.path.join(
-                self.settings['target_folder'], folder_name) if folder_name else self.settings['target_folder']
-            if not os.path.exists(folder_path):
-                os.mkdir(folder_path)
-            # Yes, folder may be not created but count expected results, not actions.
-            created_folders += 1
-            self.logger.info(t("Copying %{files_number} files into %{folder_name}...", files_number=len(files_actions),
-                    folder_name=(folder_name if folder_name else folder_path)))
-            for action in files_actions:
-                shutil.copy2(action[0], os.path.join(
-                    folder_path, action[1]))
-                copied_files += 1
+        total_files = sum(len(x) for x in self.classified_files.values())
+        with tqdm.tqdm(total=total_files, desc=t("Progress"), unit='files') as progress_bar, logging_redirect_tqdm():
+            for folder_name, files_actions in self.classified_files.items():
+                folder_path = os.path.join(
+                    self.settings['target_folder'], folder_name) if folder_name else self.settings['target_folder']
+                if not os.path.exists(folder_path):
+                    os.mkdir(folder_path)
+                # Yes, folder may be not created but count expected results, not actions.
+                created_folders += 1
+                self.logger.info(t("Copying %{files_number} files into %{folder_name}...",
+                        files_number=len(files_actions), folder_name=(folder_name if folder_name else folder_path)))
+                for action in files_actions:
+                    shutil.copy2(action[0], os.path.join(
+                        folder_path, action[1]))
+                    copied_files += 1
+                    progress_bar.update(1)
         return t("Created %{folders_number} folders and copied %{files_number} files into '%{folder}' in %{duration}.",
                  folders_number=created_folders, files_number=copied_files, folder=self.settings['target_folder'],
                  duration=(datetime.datetime.now() - start_date))

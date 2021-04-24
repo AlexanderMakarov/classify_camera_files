@@ -2,3 +2,4 @@
 Pillow
 python-i18n
 pyinstaller
+tqdm
