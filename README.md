@@ -18,7 +18,7 @@ Note that to choose folder it is necessarily go into it and only next press "OK"
 - https://www.python.org/downloads/
 - Clone/copy repo **on target OS**.
 - `pip3 install -r requirements.txt`
-- `pyinstaller --clean --onefile .` (without '--clean' if first time).
+- `pyinstaller --clean --onefile classify_camera_files.py` (without '--clean' if first time).
 - Open "classify_camera_files.spec" and in "exe = EXE(..." line change "console=False". Save file.
 - `pyinstaller classify_camera_files.spec`
 - Resulting executable file will be placed in "dist" folder.
@@ -32,8 +32,8 @@ Note that to choose folder it is necessarily go into it and only next press "OK"
     - ~~git repo~~
     - ~~UI with progress~~
     - ~~UI with actions~~
-    - Bug: Xterm confusing ?
-    - Bug: UI freezes during copying
+    - ~~Bug: Xterm confusing~~
+    - ~~Bug: UI freezes during copying~~
     - Need progress bar
     - Need ETA for copying
     - ~~Enable copy-into-clipboard from log widget~~

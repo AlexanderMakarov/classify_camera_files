@@ -7,6 +7,7 @@ from types import FunctionType
 from functools import partial
 from localization import t, add_translation
 import threading
+import copy
 
 # UI to show classifier activity and ask details based on Tkinter and
 # https://stackoverflow.com/questions/13318742/python-logging-to-tkinter-text-widget
@@ -175,25 +176,36 @@ class ClassifierUI():
         if folder:
             variable.set(folder)
 
+    @staticmethod
+    def _build_task_classifier_command_with_logs(command: FunctionType, final_task: FunctionType, logger: logging.Logger):
+        def task():
+            try:
+                command()
+                messagebox.showinfo(title=t('Camera files classifier by Alexander Makarov'),
+                                    message=t('Classifier task completed.'))
+            except Exception as e:
+                message = t('Classifier error: %{error}', error=e)
+                logger.error(message, exc_info=True)
+                messagebox.showinfo(title=message, message=t('Classifier task finish.'))
+            final_task()
+        return task
+
     def _configure_and_run(self, classifier, command: FunctionType, force_verbose=False):
-        if force_verbose:
-            verbose = classifier.settings.get('verbose')
-            classifier.settings['verbose'] = True
         classifier.settings['source_folder'] = self.source_folder.get()
         classifier.settings['target_folder'] = self.target_folder.get()
         classifier.settings['is_replace_target'] = True if self.is_replace.get() == 1 else False
+        settings_to_restore = copy.deepcopy(classifier.settings)
+        if force_verbose:
+            classifier.settings['verbose'] = True
 
         # Run command in separate thread to don't freeze UI.
-        try:
-            threading.Thread(target=command()).start()
-            messagebox.showinfo(title=t('Camera files classifier by Alexander Makarov'),
-                                message=t('Classifier task completed.'))
-        except Exception as e:
-            classifier.logger.error(t('Classifier error: %{error}', error=e), exc_info=True)
-
-        # Restore 'verbose' setting for classifier.
-        if force_verbose:
-            classifier.settings['verbose'] = verbose
+        threading.Thread(
+            target=self._build_task_classifier_command_with_logs(
+                command=command,
+                final_task=lambda: classifier.settings.update(settings_to_restore),
+                logger=classifier.logger
+            )
+        ).start()
 
     def run_mainloop(self, classifier):
         # Fill UI variables with classifier settings.
