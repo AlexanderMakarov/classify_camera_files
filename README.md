@@ -1,30 +1,34 @@
 # classify_camera_files
 Classifies raw photos and videos from cameras and smartphones to simplify naming and uploading for search.
 
-# How To Use
+# How To Use in GUI
 Execute [classify_camera_files.exe](classify_camera_files.exe) on Windows
 or [classify_camera_files](classify_camera_files) on Unix.
-Should appear UI (with Russial locale if need).
+Should appear GUI (with Russian or English locale).
 
-Note that to choose folder it is necessarily go into it and only next press "OK".
+Note that to choose folder via "Browse" buttong it is necessarily go into it and only next press "OK".
 
-# How To Work with on Unix
-- `pip3 install -r requirements.txt`
-- for Debian `sudo apt-get install python3-tk`, for Windows Tkinter is packed into Python installer.
-- `classify_camera_files.py -h`
+# How To Work in console
+- (first time) `python3 -m venv venv` in root folder of repo.
+- (after restart) `. venv/bin/acitvate` on Unix/Mac and `venv\Scripts\activate.bat` on Windows.
+- (first time or after pull) `pip3 install -r requirements.txt`
+- For Debian `sudo apt-get install python3-tk`, for Windows Tkinter is packed into Python installer.
+- `python3 classify_camera_files.py -h`
 - Next see what is better way to use it.
 
 # How To Build Executable file (both Windows and Unix)
-- https://www.python.org/downloads/
+- https://www.python.org/downloads/ and https://docs.python.org/3.8/library/venv.html
 - Clone/copy repo **on target OS**.
-- `pip3 install -r requirements.txt`
+- `python3 -m venv venv` in root folder of repo.
+- `. venv/bin/acitvate` on Unix/Mac and `venv\Scripts\activate.bat` on Windows.
+- `pip3 install -r requirements.txt`.
 - `pyinstaller --clean --onefile classify_camera_files.py` (without '--clean' if first time).
-- Open "classify_camera_files.spec" and in "exe = EXE(..." line change "console=False". Save file.
+- Open "classify_camera_files.spec" and in "exe = EXE(..." line (last) change "console=False". Save file.
 - `pyinstaller classify_camera_files.spec`
 - Resulting executable file will be placed in "dist" folder.
 - Try execute from not "dist" folder! Important to ensure that all paths are relative.
 
-### Roadmap
+### Roadmap/Issues
 - Simple classification strategy by time + files number
     - ~~MVP~~
     - ~~Localization~~
