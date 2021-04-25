@@ -5,6 +5,7 @@ import datetime
 import csv
 import sys
 import logging
+from types import FunctionType
 from typing import Any, List, Dict, Set, Callable, AnyStr, Iterable
 from PIL import Image, ExifTags
 import collections
@@ -60,6 +61,7 @@ class ClassifyCameraFiles():
             'max_minutes_between_files_in_folder', self.MAX_TIME_BETWEEN_FILES_IN_FOLDER_MINUTES)
         self.settings['lang'] = settings.get('lang', 'en')
         self.settings['verbose'] = settings.get('verbose', True)
+        self.progress_listeners = [TqdmProgressListener()]
 
         # Each file in folder with extracted features.
         self.analyze_results: List[Dict] = None
@@ -133,7 +135,20 @@ class ClassifyCameraFiles():
         )
         add_translation("ClassifyCameraFiles: started with settings %{settings}",
                         "ClassifyCameraFiles: запущен с настройками %{settings}", locale='ru')
-        add_translation("Progress", "Прогресс", locale='ru')
+
+    def _step_all_progress_listeners(self, step: float):
+        for progress_listener in self.progress_listeners:
+            progress_listener.step(step)
+
+    def _run_with_progress(self, total: float, task: Callable):
+        for progress_listener in self.progress_listeners:
+            progress_listener.start(total)
+        try:
+            task(self._step_all_progress_listeners)
+        finally:
+            for progress_listener in self.progress_listeners:
+                progress_listener.finish()
+            
 
     def _parse_file_metadata(self, file_path: str) -> Dict:
         return {  # Sync with SUPPORTED_FILE_ATTRIBUTES.
@@ -169,9 +184,9 @@ class ClassifyCameraFiles():
                         if self.settings.get('verbose'):
                             self.logger.info(f"  {file_path} -> {file_features}")
                         self.analyze_results.append(file_features)
-        return t("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
+        self.logger.info(t("Analyzed %{files_number} files from '%{source_folder}' in %{duration}.",
                  files_number=len(self.analyze_results), source_folder=self.settings['source_folder'],
-                 duration=(datetime.datetime.now() - start_time))
+                 duration=(datetime.datetime.now() - start_time)))
 
     def _save_results(self):
         possible_keys: Set = set()
@@ -182,20 +197,22 @@ class ClassifyCameraFiles():
             writer.writeheader()
             for result in self.analyze_results:
                 writer.writerow(result)
-        return t("Dumped %{files_number} files analyze results with %{possible_keys} columns into '%{file_path}'.",
-                 files_number=len(self.analyze_results), possible_keys=possible_keys,
-                 file_path=self.settings['results_file_path'])
+        self.logger.info(
+            t("Dumped %{files_number} files analyze results with %{possible_keys} columns into '%{file_path}'.",
+              files_number=len(self.analyze_results), possible_keys=possible_keys,
+              file_path=self.settings['results_file_path'])
+        )
 
     def _read_results(self):
         with open(self.settings['results_file_path'], 'r', newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             self.analyze_results = [x for x in reader]
         if self.analyze_results:
-            return t("Found %{files_number} files docs with %{keys} fields in '%{file_path}'.",
+            self.logger.info(t("Found %{files_number} files docs with %{keys} fields in '%{file_path}'.",
                      files_number=len(self.analyze_results), keys=self.analyze_results[0].keys(),
-                     file_path=self.settings['results_file_path'])
+                     file_path=self.settings['results_file_path']))
         else:
-            return t("Found nothing in '%{file_path}'.", file_path=self.settings['results_file_path'])
+            self.logger.warn(t("Found nothing in '%{file_path}'.", file_path=self.settings['results_file_path']))
 
     @staticmethod
     def _choose_right_label_from_counter(counter: collections.Counter, labels: Iterable[str],
@@ -387,8 +404,8 @@ class ClassifyCameraFiles():
         for result in out_of_bucket_files:
             self.classified_files[None] = [
                 (x['Path'], x['_name']) for x in out_of_bucket_files]
-        return t("Total %{folders_len} folders and %{files_number} 'nothing common' files.", folders_len=folders_len,
-                 files_number=len(out_of_bucket_files))
+        self.logger.info(t("Total %{folders_len} folders and %{files_number} 'nothing common' files.",
+                           folders_len=folders_len, files_number=len(out_of_bucket_files)))
 
     def _make_folder(self):
         folder = self.settings['target_folder']
@@ -400,29 +417,30 @@ class ClassifyCameraFiles():
             os.makedirs(folder)
 
     def _copy(self):
+        self._make_folder()
+        self._run_with_progress(sum(len(x) for x in self.classified_files.values()), self._copy_task)
+    
+    def _copy_task(self, progress_step: Callable[[float], None]):
         created_folders = 0
         copied_files = 0
         start_date = datetime.datetime.now()
-        self._make_folder()
-        total_files = sum(len(x) for x in self.classified_files.values())
-        with tqdm.tqdm(total=total_files, desc=t("Progress"), unit='files') as progress_bar, logging_redirect_tqdm():
-            for folder_name, files_actions in self.classified_files.items():
-                folder_path = os.path.join(
-                    self.settings['target_folder'], folder_name) if folder_name else self.settings['target_folder']
-                if not os.path.exists(folder_path):
-                    os.mkdir(folder_path)
-                # Yes, folder may be not created but count expected results, not actions.
-                created_folders += 1
-                self.logger.info(t("Copying %{files_number} files into %{folder_name}...",
-                        files_number=len(files_actions), folder_name=(folder_name if folder_name else folder_path)))
-                for action in files_actions:
-                    shutil.copy2(action[0], os.path.join(
-                        folder_path, action[1]))
-                    copied_files += 1
-                    progress_bar.update(1)
-        return t("Created %{folders_number} folders and copied %{files_number} files into '%{folder}' in %{duration}.",
+        for folder_name, files_actions in self.classified_files.items():
+            folder_path = os.path.join(
+                self.settings['target_folder'], folder_name) if folder_name else self.settings['target_folder']
+            if not os.path.exists(folder_path):
+                os.mkdir(folder_path)
+            # Yes, folder may be not created but count expected results, not actions.
+            created_folders += 1
+            self.logger.info(t("Copying %{files_number} files into %{folder_name}...",
+                    files_number=len(files_actions), folder_name=(folder_name if folder_name else folder_path)))
+            for action in files_actions:
+                shutil.copy2(action[0], os.path.join(
+                    folder_path, action[1]))
+                copied_files += 1
+                progress_step(1)
+        self.logger.info(t("Created %{folders_number} folders and copied %{files_number} files into '%{folder}' in %{duration}.",
                  folders_number=created_folders, files_number=copied_files, folder=self.settings['target_folder'],
-                 duration=(datetime.datetime.now() - start_date))
+                 duration=(datetime.datetime.now() - start_date)))
 
     def _move(self):
         created_folders = 0
@@ -441,50 +459,81 @@ class ClassifyCameraFiles():
             for action in files_actions:
                 shutil.move(action[0], os.path.join(folder_path, action[1]))
                 moved_files += 1
-        return t("Created %{folders_number} folders and moved %{files_number} files into '%{folder}' in %{duration}.",
+        self.logger.info(t("Created %{folders_number} folders and moved %{files_number} files into '%{folder}' in %{duration}.",
                  folders_number=created_folders, folder=moved_files, target_folder=self.settings['target_folder'],
-                 duration=(datetime.datetime.now() - start_date))
+                 duration=(datetime.datetime.now() - start_date)))
 
     def analyze_all(self):
         self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
-        self.logger.info(self._analyze({
+        self._analyze({
             "Image": [self._parse_file_metadata, self._parse_exif_tags],
             "Video": [self._parse_file_metadata]  # TODO parse info from video.
-        }))
-        self.logger.info(self._save_results())
+        })
+        self._save_results()
 
     def classify_in_console(self):
         self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
-        self.logger.info(self._read_results())
-        self.logger.info(self._classify())
+        self._read_results()
+        self._classify()
 
     def move(self):
         self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
-        self.logger.info(self._read_results())
-        self.logger.info(self._classify())
-        self.logger.info(self._move())
+        self._read_results()
+        self._classify()
+        self._move()
 
     def copy(self):
         self.logger.info("------------------------------------")
         self.logger.info(t("ClassifyCameraFiles: started with settings %{settings}", settings=self.settings))
-        self.logger.info(self._read_results())
-        self.logger.info(self._classify())
-        self.logger.info(self._copy())
+        self._read_results()
+        self._classify()
+        self._copy()
 
     def analyze_all_and_copy(self):
         self.analyze_all()
-        self.logger.info(self._read_results())
-        self.logger.info(self._classify())
-        self.logger.info(self._copy())
+        self._read_results()
+        self._classify()
+        self._copy()
 
     def analyze_all_and_move(self):
         self.analyze_all()
-        self.logger.info(self._read_results())
-        self.logger.info(self._classify())
-        self.logger.info(self._move())
+        self._read_results()
+        self._classify()
+        self._move()
+
+
+class ProgressListener:
+    """
+    Progress listener interface.
+    """
+
+    def start(self, total: float):
+        pass
+
+    def step(self, value: float):
+        raise NotImplementedError()
+
+    def finish(self):
+        pass
+
+
+class TqdmProgressListener(ProgressListener):
+    def __init__(self) -> None:
+        add_translation("Progress", "Прогресс", locale='ru')
+
+    def start(self, total: float):
+        self.tqdm = tqdm.tqdm(total=total, desc=t("Progress"), unit='files')
+        self.tqdm_context_manager = logging_redirect_tqdm()
+        self.tqdm_context_manager.__enter__()
+
+    def step(self, value: float):
+        self.tqdm.update(value)
+
+    def finish(self):
+        self.tqdm_context_manager.__exit__(None, None, None)
 
 
 class ReadableDirAction(argparse.Action):

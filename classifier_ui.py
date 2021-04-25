@@ -1,6 +1,8 @@
+from classify_camera_files import ProgressListener
 import logging
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
+from tkinter.ttk import Progressbar, Style, Button
 from tkinter import messagebox
 from tkinter import filedialog
 from types import FunctionType
@@ -43,6 +45,19 @@ class LogScrolledText(ScrolledText):
         self.clipboard_clear()
         text = self.get("sel.first", "sel.last")
         self.clipboard_append(text)
+
+
+class ProgressBarProgressListener(ProgressListener):
+    def __init__(self, progress_bar) -> None:
+        super().__init__()
+        self.progress_bar = progress_bar
+
+    def start(self, total: float):
+        self.progress_bar['maximum'] = total
+        self.progress_bar['value'] = 0
+
+    def step(self, value: float):
+        self.progress_bar.step(value)
 
 class ClassifierUI():
     def __init__(self):
@@ -111,6 +126,7 @@ class ClassifierUI():
             self.control_frame,
             text=t('Analyze and Copy'),
         )
+        self.analyze_and_copy_button.configure(font=('Sans', '10', 'bold'))
         self.analyze_and_move_button = tk.Button(
             self.control_frame,
             text=t('Analyze and Move'),
@@ -120,7 +136,7 @@ class ClassifierUI():
             text=t('Analyze Only'),
         )
         # Put controls on grid.
-        row=0
+        row = 0
         self.source_folder_label.grid(
             row=row, column=0, sticky=tk.E
         )
@@ -130,7 +146,7 @@ class ClassifierUI():
         self.source_folder_button.grid(
             row=row, column=2
         )
-        row=1
+        row = 1
         self.target_folder_label.grid(
             row=row, column=0, sticky=tk.E
         )
@@ -140,14 +156,14 @@ class ClassifierUI():
         self.target_folder_button.grid(
             row=row, column=2
         )
-        row=2
+        row = 2
         self.is_replace_label.grid(
             row=row, column=0, sticky=tk.E
         )
         self.is_replace_check.grid(
             row=row, column=1, sticky=tk.W
         )
-        row=3
+        row = 3
         self.analyze_and_copy_button.grid(
             row=row, column=0, sticky=tk.EW
         )
@@ -158,18 +174,30 @@ class ClassifierUI():
             row=row, column=2, sticky=tk.E
         )
         # Put control frame on grid.
+        row = 0
         self.control_frame.grid(
-            row=0, column=0, sticky=tk.W+tk.N+tk.E
+            row=row, column=0, sticky=tk.EW
         )
         self.control_frame.columnconfigure(1, weight=10)  # Middle column expand to fill window.
+        # Add progress bar under control frame.
+        row = 1
+        self.progress_bar = Progressbar(
+            self.root,
+            orient=tk.HORIZONTAL,
+            mode='determinate',
+        )
+        self.progress_bar.grid(
+            row=row, column=0, sticky=tk.EW
+        )
         # Add text widget to display logging info under control frame. Put on grid.
+        row = 2
         self.log_view = LogScrolledText(self.root)
         self.log_view.grid(
-            row=1, column=0, sticky=tk.NSEW
+            row=row, column=0, sticky=tk.NSEW
         )
         # Full the whole window with both top widgets on horizontal, expand log view on vertical.
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(1, weight=1)
+        self.root.rowconfigure(2, weight=1)
 
     def ask_folder(self, dialog_title: str, variable: tk.StringVar):
         folder = filedialog.askdirectory(title=dialog_title)
@@ -194,6 +222,7 @@ class ClassifierUI():
         classifier.settings['source_folder'] = self.source_folder.get()
         classifier.settings['target_folder'] = self.target_folder.get()
         classifier.settings['is_replace_target'] = True if self.is_replace.get() == 1 else False
+        classifier.progress_listeners.append(ProgressBarProgressListener(self.progress_bar))
         settings_to_restore = copy.deepcopy(classifier.settings)
         if force_verbose:
             classifier.settings['verbose'] = True

@@ -34,11 +34,11 @@ Note that to choose folder it is necessarily go into it and only next press "OK"
     - ~~UI with actions~~
     - ~~Bug: Xterm confusing~~
     - ~~Bug: UI freezes during copying~~
-    - Need progress bar
-    - Need ETA for copying
+    - ~~Need progress bar~~
+    - Need ETA for copying in UI
     - ~~Enable copy-into-clipboard from log widget~~
     - ~~Need alarm/signal that job finish~~
-    - Bug: buttons functions are unclear
+    - Bug: buttons functions are unclear (https://stackoverflow.com/a/56749167/1535127)
     - ~~Bug: ! Video creation time is wrong (equal job start time)~~
     - UI with fine tuning (really need?)
     - Faster parsing (really need?)
